@@ -3,27 +3,16 @@ pragma solidity >=0.5.11;
 import "ds-token/token.sol";
 import "ds-chief/chief.sol";
 
-/// @dev Vote MKR tokens with a hot key and ensure all assets are returned to a cold key.
-/// Expected flow: originate a contract with hot, cold keys; pointed to an active DSChief
-/// voting contract. Deposits funds directly in this contract. lock()/vote() those funds
-/// as desired using the hot key. release() funds back to the cold key.
-contract VoteProxy is DSMath {
-    address public cold;
-    address public hot;
+contract Delegate is DSMath {
+    address public owner;
     DSToken public gov;
     DSToken public iou;
     DSChief public chief;
     mapping(address => uint256) deposits;
 
-    constructor(
-        DSChief _chief,
-        address _cold,
-        address _hot
-    ) public {
+    constructor(DSChief _chief) public {
         chief = _chief;
-        cold = _cold;
-        hot = _hot;
-
+        owner = msg.sender;
         gov = chief.GOV();
         iou = chief.IOU();
         gov.approve(address(chief));
@@ -31,10 +20,7 @@ contract VoteProxy is DSMath {
     }
 
     modifier auth() {
-        require(
-            msg.sender == hot || msg.sender == cold,
-            "Sender must be a Cold or Hot Wallet"
-        );
+        require(msg.sender == owner, "Sender must be a owner");
         _;
     }
 
@@ -46,8 +32,8 @@ contract VoteProxy is DSMath {
 
     function free(uint256 wad) public {
         chief.free(chief.deposits(address(this)));
-        deposits[msg.sender] = sub(deposits[msg.sender], wad);
         gov.push(msg.sender, wad);
+        deposits[msg.sender] = sub(deposits[msg.sender], wad);
     }
 
     function vote(address[] memory yays) public auth returns (bytes32) {
